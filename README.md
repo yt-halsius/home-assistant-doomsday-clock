@@ -132,11 +132,13 @@ When reporting an issue, include the Home Assistant Core version, the full error
 From the repository root, using a Python virtual environment:
 
 ```sh
-python -m pip install aiohttp voluptuous beautifulsoup4==4.13.3
+python -m pip install -r requirements-test.txt
 python -B -m unittest discover -s tests -v
 ```
 
 Parser tests use real Beautiful Soup. Sensor tests mock the Home Assistant API and HTTP responses; they do not replace testing inside a running Home Assistant installation.
+
+The [GitHub Actions test workflow](./.github/workflows/tests.yml) runs this suite on Python 3.12, 3.13, and 3.14 for pushes and pull requests. It can also be started manually from the repository's Actions tab.
 
 <p align="right"><a href="#top" title="Back to top">🔝</a></p>
 
