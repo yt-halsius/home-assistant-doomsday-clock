@@ -105,9 +105,19 @@ sensor:
 - **unit_of_measurement** _(string) (optional)_  
   Custom unit label for the value. (default = `min`) Changing the label does not convert the value; use `value_template` for conversion.
 - **value_template** _([template](https://home-assistant.io/docs/configuration/templating/)) (optional)_  
-  Custom template to manipulate the numeric state of the sensor. `value` is always the source countdown in minutes, including fractional minutes when the source reports seconds. The template must return a finite number.
+  Custom template to manipulate the numeric state of the sensor. `value` is always the source countdown in minutes, including fractional minutes when the source reports seconds. The template must return a finite number. Its result is used directly, with `unit_of_measurement` as the output label.
 
-The `countdown` and `time` attributes always describe the original source setting, even if a template converts the state to another unit. For example, 85 seconds is `85 / 60` minutes and a clock-face time of `23:58:35`.
+To display the countdown in seconds, convert minutes using a template:
+
+```yaml
+sensor:
+  - platform: doomsday_clock
+    scan_interval: 86400
+    unit_of_measurement: sec
+    value_template: "{{ value | float * 60 }}"
+```
+
+For a source countdown of 85 seconds, this configuration reports `85 sec`, while the default configuration reports `85 / 60` minutes. Setting only `unit_of_measurement: sec` would leave that minutes value unchanged and simply label it as seconds. The `countdown` and `time` attributes always describe the original source setting, regardless of the configured unit or template; the clock-face time remains `23:58:35`.
 
 ### Updating older installations
 

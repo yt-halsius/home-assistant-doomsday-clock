@@ -157,9 +157,9 @@ class DoomsdayClockSensorTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(after, before)
         self.assertNotIn(sensor.__name__, sys.modules)
 
-    def make_sensor(self, template=None):
+    def make_sensor(self, template=None, unit="min"):
         entity = self.sensor_module.DoomsdayClockSensor(
-            self.session, "Test Clock", "min", "mdi:nuke", template
+            self.session, "Test Clock", unit, "mdi:nuke", template
         )
         entity.hass = self.hass
         return entity
@@ -247,6 +247,70 @@ class DoomsdayClockSensorTests(unittest.IsolatedAsyncioTestCase):
             clock.extract_countdown,
             "<h1>It is now 85 seconds to midnight</h1>",
         )
+
+    async def test_seconds_configuration_only_changes_label_without_a_template(self):
+        add_entities = Mock()
+        config = {
+            "platform": "doomsday_clock",
+            "scan_interval": 86400,
+            "name": "Doomsday Clock",
+            "icon": "mdi:nuke",
+            "unit_of_measurement": "sec",
+        }
+        with patch.object(
+            self.sensor_module, "async_get_clientsession", return_value=self.session
+        ):
+            await self.sensor_module.async_setup_platform(
+                self.hass, config, add_entities
+            )
+        entity = add_entities.call_args.args[0][0]
+        entity.hass = self.hass
+        await entity.async_update()
+        self.assertTrue(entity.available)
+        self.assertEqual(entity.native_unit_of_measurement, "sec")
+        self.assertAlmostEqual(entity.native_value, 85 / 60)
+        self.assertEqual(entity.extra_state_attributes["time"], "23:58:35")
+
+    async def test_seconds_labels_keep_minutes_value_and_source_attributes(self):
+        for unit in ("s", "sec", "secs", "second", "seconds", "SEC", " seconds "):
+            with self.subTest(unit=unit):
+                entity = self.make_sensor(unit=unit)
+                await entity.async_update()
+                self.assertTrue(entity.available)
+                self.assertEqual(entity.native_unit_of_measurement, unit)
+                self.assertAlmostEqual(entity.native_value, 85 / 60)
+                self.assertEqual(entity.extra_state_attributes["time"], "23:58:35")
+                self.assertEqual(
+                    entity.extra_state_attributes["countdown"],
+                    "It is now 85 seconds to midnight",
+                )
+
+    async def test_seconds_label_does_not_convert_minute_based_source(self):
+        for amount, expected in (("2", 2), ("2.5", 2.5)):
+            with self.subTest(amount=amount):
+                self.response.text.return_value = (
+                    f"<h1>It is now {amount} minutes to midnight</h1>"
+                )
+                entity = self.make_sensor(unit="sec")
+                await entity.async_update()
+                self.assertEqual(entity.native_value, expected)
+
+    async def test_minutes_and_custom_labels_keep_the_minutes_value(self):
+        for unit in ("min", "minute", "minutes", "custom"):
+            with self.subTest(unit=unit):
+                entity = self.make_sensor(unit=unit)
+                await entity.async_update()
+                self.assertEqual(entity.native_unit_of_measurement, unit)
+                self.assertAlmostEqual(entity.native_value, 85 / 60)
+
+    async def test_seconds_conversion_is_controlled_by_template(self):
+        template = Mock(spec=["async_render"])
+        template.async_render.side_effect = lambda variables: variables["value"] * 60
+        entity = self.make_sensor(template, unit="sec")
+        await entity.async_update()
+        template.async_render.assert_called_once_with({"value": 85 / 60})
+        self.assertEqual(entity.native_value, 85)
+        self.assertEqual(entity.extra_state_attributes["time"], "23:58:35")
 
     async def test_template_numeric_strings_do_not_change_source_clock_time(self):
         for rendered, expected in (("85", 85.0), (" 2.5 ", 2.5), ("0", 0.0)):
